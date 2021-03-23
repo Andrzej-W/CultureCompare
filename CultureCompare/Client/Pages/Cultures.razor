@@ -1,0 +1,161 @@
+﻿@page "/cultures"
+@using System.Globalization
+@inject HttpClient Http
+
+<h1>Culture list</h1>
+<div>
+  <input type="checkbox" id="show-missing-only" @bind="ShowMissingOnly" />
+  <label for="show-missing-only">Show Missing Only</label>
+</div>
+<div>
+  <input type="checkbox" id="show-different-only" @bind="ShowDifferentOnly" />
+  <label for="show-different-only">Show Different Only</label>
+</div>
+
+@if (cultureList == null)
+{
+  <p><em>Loading...</em></p>
+}
+else
+{
+  <table class="table table-bordered">
+    <thead class="text-center">
+      <tr>
+        <th colspan="2">Server</th>
+        <th colspan="2">Client</th>
+        <th>Show</th>
+      </tr>
+      <tr>
+        <th>Name</th>
+        <th>English Name</th>
+        <th>Name</th>
+        <th>English Name</th>
+        <th>Info</th>
+      </tr>
+    </thead>
+    <tbody>
+      @foreach (var c in cultureList)
+      {
+        if (ShowMissingOnly && (c.server == null || c.client == null)
+            || ShowDifferentOnly && c.server != null && c.client != null && !CompareCultures(c.server, c.client)
+            || !ShowDifferentOnly && !ShowMissingOnly)
+        {
+          <tr>
+            <td>@c.server?.Name</td>
+            <td>@c.server?.EnglishName</td>
+            <td>@c.client?.Name</td>
+            <td>@c.client?.EnglishName</td>
+            <td>
+              <button class="btn @(CompareCultures(c.server, c.client) ? "btn-info" : "btn-danger")"
+                      @onclick="@(e => ChangeVisibility(e, c))">
+                @(c.visible? "Hide" : "Show")
+              </button>
+            </td>
+          </tr>
+          @if (c.visible)
+          {
+            <tr>
+              <td colspan="5">
+                <CultureProperties server="c.server" client="c.client"></CultureProperties>
+              </td>
+            </tr>
+
+          }
+        }
+      }
+    </tbody>
+  </table>
+}
+
+@code {
+  private bool showMissingOnly;
+
+  public bool ShowMissingOnly
+  {
+    get { return showMissingOnly; }
+    set
+    {
+      showMissingOnly = value;
+      if (value)
+        showDifferentOnly = false;
+    }
+  }
+
+  private bool showDifferentOnly;
+
+  public bool ShowDifferentOnly
+  {
+    get { return showDifferentOnly; }
+    set
+    {
+      showDifferentOnly = value;
+      if (value)
+        showMissingOnly = false;
+    }
+  }
+
+  private CultureDTO[] serverCultures;
+  private CultureDTO[] clientCultures;
+  private List<TwoCultures> cultureList;
+
+  protected override async Task OnInitializedAsync()
+  {
+    serverCultures = await Http.GetFromJsonAsync<CultureDTO[]>("Culture");
+    clientCultures = CultureDTO.GetAllCultures();
+    //clientCultures = new CultureDTO[] { };
+    cultureList = new List<TwoCultures>();
+
+    int serverIdx = 0;
+    int clientIdx = 0;
+
+    while (true)
+    {
+      int cmpResult;
+      if (serverIdx >= serverCultures.Length && clientIdx >= clientCultures.Length)
+        break;
+      else if (serverIdx < serverCultures.Length && clientIdx < clientCultures.Length)
+        cmpResult = string.CompareOrdinal(serverCultures[serverIdx].Name, clientCultures[clientIdx].Name);
+      else if (serverIdx >= serverCultures.Length)
+        cmpResult = 1;
+      else
+        cmpResult = -1;
+
+      if (cmpResult == 0)
+      {
+        cultureList.Add(new TwoCultures(serverCultures[serverIdx], clientCultures[clientIdx]));
+        serverIdx++;
+        clientIdx++;
+      }
+      else if (cmpResult < 0)
+      {
+        cultureList.Add(new TwoCultures(serverCultures[serverIdx], null));
+        serverIdx++;
+      }
+      else if (cmpResult > 0)
+      {
+        cultureList.Add(new TwoCultures(null, clientCultures[clientIdx]));
+        clientIdx++;
+      }
+    }
+  }
+  private bool CompareCultures(CultureDTO server, CultureDTO client)
+  {
+    if (server == null || client == null)
+      return true;
+    return /*server.EnglishName == client.EnglishName
+        && */ server.ShortDatePattern == client.ShortDatePattern
+        && server.LongDatePattern == client.LongDatePattern
+        && server.ShortTimePattern == client.ShortTimePattern
+        && server.LongTimePattern == client.LongTimePattern
+        && server.NumberDecimalSeparator == client.NumberDecimalSeparator
+        && server.NumberGroupSeparator == client.NumberGroupSeparator
+        && server.CurrencyDecimalSeparator == client.CurrencyDecimalSeparator
+        && server.CurrencyGroupSeparator == client.CurrencyGroupSeparator
+        && server.CurrencySymbol == client.CurrencySymbol;
+  }
+
+  private void ChangeVisibility(MouseEventArgs e, TwoCultures tc)
+  {
+    tc.visible = !tc.visible;
+  }
+}

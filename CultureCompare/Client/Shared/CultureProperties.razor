@@ -1,0 +1,81 @@
+﻿<table class="table table-bordered">
+    <thead>
+        <tr>
+            <td>Property</td>
+            <td>Server</td>
+            <td>Client</td>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var prop in PropertyValues)
+        {
+            <tr class="@(prop.DifferentValues ? "table-danger" : string.Empty)">
+                <td>@prop.Name</td>
+                <td>@prop.ServerValue</td>
+                <td>@prop.ClientValue</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    private CultureDTO cultureDTO;
+
+    class PropertyValue
+    {
+        public string Name { get; set; }
+        public string ServerValue { get; set; }
+        public string ClientValue { get; set; }
+        public bool DifferentValues { get => ServerValue != ClientValue; }
+    }
+
+    private List<PropertyValue> PropertyValues { get; set; }
+
+    [Parameter]
+    public CultureDTO server { get; set; }
+    [Parameter]
+    public CultureDTO client { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+        cultureDTO = server != null ? server : client;
+        PropertyValues = new List<PropertyValue>();
+        var props = cultureDTO.GetType().GetProperties();
+        foreach (var prop in props)
+        {
+            var pv = new PropertyValue
+            {
+                Name = prop.Name,
+                ServerValue = server != null ? prop.GetValue(server).ToString() : string.Empty,
+                ClientValue = client != null ? prop.GetValue(client).ToString() : string.Empty
+            };
+            pv.ServerValue = AddCharName(pv.ServerValue);
+            pv.ClientValue = AddCharName(pv.ClientValue);
+            PropertyValues.Add(pv);
+        }
+    }
+    private string AddCharName(string value)
+    {
+        if (value?.Length > 1)
+            return value;
+
+        switch (value)
+        {
+            case null:
+                return "(null)";
+            case "":
+                return "(empty string)";
+            case ".":
+                return value + " (dot)";
+            case ",":
+                return value + " (comma)";
+            case "'":
+                return value + " (apostrophe)";
+            case " ":
+                return value + " (space)";
+            default:
+                return value + $" (Decimal unicode point: {Char.ConvertToUtf32(value, 0)})";
+        }
+    }
+}
